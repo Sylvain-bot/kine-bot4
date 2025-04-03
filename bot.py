@@ -28,16 +28,14 @@ openai.api_key = OPENAI_API_KEY
 
 # 🧠 OpenAI : générer une réponse personnalisée
 def generate_response(contexte_patient, question):
-    prompt = (
-        f"Voici le contexte d’un patient en rééducation :
-{contexte_patient}
+    prompt = f"""Voici le contexte d’un patient en rééducation :
+{contexte}
 
-"
-        f"Le patient pose la question suivante :
+Le patient pose la question suivante :
 {question}
 
-"
-        f"Réponds de manière professionnelle, bienveillante et claire. Tu es un assistant kinésithérapeute."
+Réponds de manière professionnelle, bienveillante et claire. Tu es un assistant kinésithérapeute."""
+
     )
 
     completion = openai.ChatCompletion.create(
