@@ -61,8 +61,7 @@ def webhook():
 
 
 async def handle_update(update: Update):
-    if not application.ready:
-        await application.initialize()
+    await application.initialize()
     await application.process_update(update)
 
 
