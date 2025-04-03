@@ -1,4 +1,3 @@
-
 import os
 import json
 import openai
@@ -29,14 +28,12 @@ openai.api_key = OPENAI_API_KEY
 # 🧠 OpenAI : générer une réponse personnalisée
 def generate_response(contexte_patient, question):
     prompt = f"""Voici le contexte d’un patient en rééducation :
-{contexte}
+{contexte_patient}
 
 Le patient pose la question suivante :
 {question}
 
 Réponds de manière professionnelle, bienveillante et claire. Tu es un assistant kinésithérapeute."""
-
-    )
 
     completion = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
@@ -74,7 +71,6 @@ def find_patient(patient_input):
 application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
     args = context.args
     if args:
         context.user_data["patient_input"] = args[0].lower()
@@ -91,10 +87,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if patient:
         contexte = (
-            f"Prénom : {patient['prenom']}
-"
-            f"Exercice du jour : {patient['exercice_du_jour']}
-"
+            f"Prénom : {patient['prenom']}\n"
+            f"Exercice du jour : {patient['exercice_du_jour']}\n"
             f"Remarques : {patient['remarques']}"
         )
         response = generate_response(contexte, user_input)
@@ -109,7 +103,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# 🌍 Webhook avec Flask
+# Webhook Flask
 @app.route("/")
 def index():
     return "Bot Webhook actif ✅"
@@ -121,7 +115,8 @@ def webhook():
     return "OK"
 
 async def handle_update(update: Update):
-    await application.initialize()
+    if not application._initialized:
+        await application.initialize()
     await application.process_update(update)
 
 if __name__ == "__main__":
