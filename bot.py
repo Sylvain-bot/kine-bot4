@@ -3,6 +3,7 @@ import json
 import openai
 import gspread
 import asyncio
+import threading
 from flask import Flask, request
 from oauth2client.service_account import ServiceAccountCredentials
 from telegram import Update
@@ -115,7 +116,11 @@ def index():
 @app.route("/webhook", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
-    application.create_task(application.process_update(update))
+
+    def process():
+        asyncio.run(application.process_update(update))
+
+    threading.Thread(target=process).start()
     return "OK"
 
 if __name__ == "__main__":
