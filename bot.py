@@ -50,7 +50,6 @@ def get_sheet_data():
         "https://www.googleapis.com/auth/drive",
     ]
 
-    # ✅ Lecture du fichier google-creds.json au moment de l'appel
     with open("google-creds.json") as f:
         creds_dict = json.load(f)
 
@@ -116,12 +115,8 @@ def index():
 @app.route("/webhook", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
-    asyncio.run(handle_update(update))
+    application.create_task(application.process_update(update))
     return "OK"
-
-async def handle_update(update: Update):
-    await application.initialize()
-    await application.process_update(update)
 
 if __name__ == "__main__":
     print("✅ Bot démarré en mode Webhook.")
