@@ -21,10 +21,6 @@ app = Flask(__name__)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
-# ✅ Lecture du fichier secret Google
-with open("google-creds.json") as f:
-    GOOGLE_CREDS = json.load(f)
-
 # 🔐 Configuration OpenAI
 openai.api_key = OPENAI_API_KEY
 
@@ -53,7 +49,12 @@ def get_sheet_data():
         "https://www.googleapis.com/auth/drive.file",
         "https://www.googleapis.com/auth/drive",
     ]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDS, scope)
+
+    # ✅ Lecture du fichier google-creds.json au moment de l'appel
+    with open("google-creds.json") as f:
+        creds_dict = json.load(f)
+
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
     sheet = client.open("Patients").sheet1
     return sheet.get_all_records()
