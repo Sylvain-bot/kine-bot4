@@ -17,15 +17,18 @@ from telegram.ext import (
 # 📌 Initialisation de l'application Flask
 app = Flask(__name__)
 
-# ✅ Données d'environnement
+# ✅ Variables d'environnement
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-GOOGLE_CREDS = os.environ.get("GOOGLE_CREDS")
 
-# 🔐 Configuration des API
+# ✅ Lecture du fichier secret Google
+with open("google-creds.json") as f:
+    GOOGLE_CREDS = json.load(f)
+
+# 🔐 Configuration OpenAI
 openai.api_key = OPENAI_API_KEY
 
-# 🧠 OpenAI : générer une réponse personnalisée
+# 🧠 Générer réponse personnalisée
 def generate_response(contexte_patient, question):
     prompt = f"""Voici le contexte d’un patient en rééducation :
 {contexte_patient}
@@ -42,7 +45,7 @@ Réponds de manière professionnelle, bienveillante et claire. Tu es un assistan
     )
     return completion.choices[0].message["content"]
 
-# 🔍 Lecture Google Sheet
+# 📊 Lecture des données Google Sheets
 def get_sheet_data():
     scope = [
         "https://spreadsheets.google.com/feeds",
@@ -50,12 +53,12 @@ def get_sheet_data():
         "https://www.googleapis.com/auth/drive.file",
         "https://www.googleapis.com/auth/drive",
     ]
-    creds_json = json.loads(GOOGLE_CREDS)
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_json, scope)
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(GOOGLE_CREDS, scope)
     client = gspread.authorize(creds)
     sheet = client.open("Patients").sheet1
     return sheet.get_all_records()
 
+# 🔍 Trouver un patient
 def find_patient(patient_input):
     data = get_sheet_data()
     for row in data:
@@ -67,10 +70,11 @@ def find_patient(patient_input):
             return row
     return None
 
-# 🌐 Telegram bot
+# 🤖 Initialisation bot Telegram
 application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     args = context.args
     if args:
         context.user_data["patient_input"] = args[0].lower()
@@ -103,7 +107,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# Webhook Flask
+# 🌍 Webhook avec Flask
 @app.route("/")
 def index():
     return "Bot Webhook actif ✅"
@@ -115,8 +119,7 @@ def webhook():
     return "OK"
 
 async def handle_update(update: Update):
-    if not application._initialized:
-        await application.initialize()
+    await application.initialize()
     await application.process_update(update)
 
 if __name__ == "__main__":
