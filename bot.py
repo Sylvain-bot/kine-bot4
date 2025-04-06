@@ -14,6 +14,7 @@ from telegram.ext import (
     filters
 )
 from openai import OpenAI
+from pprint import pprint
 
 # 📌 Initialisation Flask
 app = Flask(__name__)
@@ -130,16 +131,26 @@ def index():
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
+    print("🔥 Webhook reçu")
+    try:
+        data = request.get_json(force=True)
+        print("📨 Contenu brut du webhook :")
+        pprint(data)  # affiche le JSON brut reçu par Telegram
 
-    async def handle():
-        if not application.running:
-            await application.initialize()
-            await application.start()
-        await application.update_queue.put(update)
+        update = Update.de_json(data, application.bot)
 
-    threading.Thread(target=lambda: asyncio.run(handle())).start()
-    return "OK"
+        async def handle():
+            if not application.running:
+                await application.initialize()
+                await application.start()
+            await application.update_queue.put(update)
+
+        threading.Thread(target=lambda: asyncio.run(handle())).start()
+        return "OK"
+
+    except Exception as e:
+        print(f"❌ Erreur dans le webhook : {e}")
+        return "Erreur", 500
 
 # ▶️ Démarrage local
 if __name__ == "__main__":
