@@ -91,6 +91,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     patient = find_patient(patient_input)
 
     if patient:
+        print(f"✅ Patient trouvé : {patient}")
         contexte = (
             f"Prénom : {patient['prenom']}\n"
             f"Exercice du jour : {patient['exercice_du_jour']}\n"
@@ -98,6 +99,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         response = generate_response(contexte, user_input)
     else:
+        print("❌ Patient non trouvé")
         response = (
             "Je ne trouve pas vos informations. Veuillez vérifier votre prénom ou ID, "
             "ou contacter directement votre kinésithérapeute."
@@ -117,10 +119,11 @@ def index():
 def webhook():
     update = Update.de_json(request.get_json(force=True), application.bot)
 
-    def process():
-        asyncio.run(application.process_update(update))
+    async def handle():
+        await application.initialize()
+        await application.process_update(update)
 
-    threading.Thread(target=process).start()
+    threading.Thread(target=lambda: asyncio.run(handle())).start()
     return "OK"
 
 if __name__ == "__main__":
