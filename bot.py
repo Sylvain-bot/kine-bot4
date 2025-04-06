@@ -28,7 +28,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # 🤖 Initialisation bot Telegram
 application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-# 📊 Connexion à Google Sheets
+# 📊 Connexion Google Sheets
 def get_sheet_data():
     scope = [
         "https://spreadsheets.google.com/feeds",
@@ -56,7 +56,7 @@ def find_patient(patient_input):
             return row
     return None
 
-# 🧠 Génération réponse avec OpenAI (v1.x)
+# 🧠 Réponse GPT
 def generate_response(contexte_patient, question):
     prompt = f"""Voici le contexte d’un patient en rééducation :
 {contexte_patient}
@@ -74,9 +74,8 @@ Réponds de manière professionnelle, bienveillante et claire. Tu es un assistan
 
     return chat_completion.choices[0].message.content
 
-# ✅ Commande /start
+# ▶️ Commande /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
     args = context.args
     if args:
         context.user_data["patient_input"] = args[0].lower()
@@ -84,9 +83,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Bonjour 👋 Je suis votre assistant kiné. Posez-moi une question ou parlez-moi de vos douleurs."
     )
 
-# ✅ Gestion des messages
+# ▶️ Gestion des messages
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(f"📩 [{update.effective_user.id}] Message reçu : {update.message.text}")
+    print(f"📩 Message reçu : {update.message.text}")
     user_input = update.message.text.strip()
     patient_input = context.user_data.get("patient_input", user_input)
     patient = find_patient(patient_input)
@@ -124,12 +123,13 @@ def webhook():
     async def handle():
         if not application.running:
             await application.initialize()
-        await application.process_update(update)
+            await application.start()
+        await application.update_queue.put(update)
 
     threading.Thread(target=lambda: asyncio.run(handle())).start()
     return "OK"
 
-# ▶️ Démarrage local (pour Render)
+# ▶️ Pour développement local
 if __name__ == "__main__":
     print("✅ Bot démarré en mode Webhook.")
     app.run(host="0.0.0.0", port=10000)
