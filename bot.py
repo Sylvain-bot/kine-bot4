@@ -76,8 +76,10 @@ Réponds de manière professionnelle, bienveillante et claire. Tu es un assistan
 
 # ▶️ Commande /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("➡️ Entrée dans /start")
     args = context.args
     if args:
+        print(f"🆔 Argument reçu : {args[0]}")
         context.user_data["patient_input"] = args[0].lower()
     await update.message.reply_text(
         "Bonjour 👋 Je suis votre assistant kiné. Posez-moi une question ou parlez-moi de vos douleurs."
