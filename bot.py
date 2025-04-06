@@ -22,10 +22,10 @@ app = Flask(__name__)
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
-# ✅ OpenAI client (nouvelle API)
+# ✅ OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# 🤖 Initialisation bot Telegram
+# 🤖 Bot Telegram
 application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
 # 📊 Connexion Google Sheets
@@ -56,7 +56,7 @@ def find_patient(patient_input):
             return row
     return None
 
-# 🧠 Réponse GPT
+# 🧠 Générer réponse OpenAI
 def generate_response(contexte_patient, question):
     prompt = f"""Voici le contexte d’un patient en rééducation :
 {contexte_patient}
@@ -85,27 +85,37 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ▶️ Gestion des messages
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print(f"📩 Message reçu : {update.message.text}")
-    user_input = update.message.text.strip()
-    patient_input = context.user_data.get("patient_input", user_input)
-    patient = find_patient(patient_input)
+    try:
+        print("➡️ Entrée dans handle_message")
+        print(f"📩 Message reçu : {update.message.text}")
 
-    if patient:
-        print(f"✅ Patient trouvé : {patient}")
-        contexte = (
-            f"Prénom : {patient.get('prenom', 'Inconnu')}\n"
-            f"Exercice du jour : {patient.get('exercice_du_jour', 'Non spécifié')}\n"
-            f"Remarques : {patient.get('remarques', 'Aucune')}"
-        )
-        response = generate_response(contexte, user_input)
-    else:
-        print("❌ Patient non trouvé")
-        response = (
-            "Je ne trouve pas vos informations. Veuillez vérifier votre prénom ou ID, "
-            "ou contacter directement votre kinésithérapeute."
-        )
+        user_input = update.message.text.strip()
+        patient_input = context.user_data.get("patient_input", user_input)
+        print(f"🔍 patient_input = {patient_input}")
 
-    await update.message.reply_text(response)
+        patient = find_patient(patient_input)
+        print(f"🔍 patient trouvé ? {patient is not None}")
+
+        if patient:
+            contexte = (
+                f"Prénom : {patient.get('prenom', 'Inconnu')}\n"
+                f"Exercice du jour : {patient.get('exercice_du_jour', 'Non spécifié')}\n"
+                f"Remarques : {patient.get('remarques', 'Aucune')}"
+            )
+            print("🧠 Envoi au modèle OpenAI...")
+            response = generate_response(contexte, user_input)
+        else:
+            response = (
+                "Je ne trouve pas vos informations. Veuillez vérifier votre prénom ou ID, "
+                "ou contacter directement votre kinésithérapeute."
+            )
+
+        print(f"💬 Réponse générée : {response}")
+        await update.message.reply_text(response)
+
+    except Exception as e:
+        print(f"❌ Erreur dans handle_message : {e}")
+        await update.message.reply_text("Une erreur est survenue. Veuillez réessayer plus tard.")
 
 # 📌 Ajout des handlers
 application.add_handler(CommandHandler("start", start))
@@ -129,7 +139,7 @@ def webhook():
     threading.Thread(target=lambda: asyncio.run(handle())).start()
     return "OK"
 
-# ▶️ Pour développement local
+# ▶️ Démarrage local
 if __name__ == "__main__":
     print("✅ Bot démarré en mode Webhook.")
     app.run(host="0.0.0.0", port=10000)
