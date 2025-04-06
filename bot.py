@@ -1,6 +1,5 @@
 import os
 import json
-import openai
 import gspread
 import asyncio
 import threading
@@ -14,6 +13,7 @@ from telegram.ext import (
     ContextTypes,
     filters
 )
+from openai import OpenAI
 
 # 📌 Initialisation Flask
 app = Flask(__name__)
@@ -21,9 +21,11 @@ app = Flask(__name__)
 # ✅ Variables d'environnement
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-openai.api_key = OPENAI_API_KEY
 
-# 🤖 Initialisation du bot Telegram
+# ✅ OpenAI client (nouvelle API)
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+# 🤖 Initialisation bot Telegram
 application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
 # 📊 Connexion à Google Sheets
@@ -38,8 +40,8 @@ def get_sheet_data():
         creds_dict = json.load(f)
 
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-    client = gspread.authorize(creds)
-    sheet = client.open("Patients").sheet1
+    client_gs = gspread.authorize(creds)
+    sheet = client_gs.open("Patients").sheet1
     return sheet.get_all_records()
 
 # 🔍 Recherche du patient
@@ -54,7 +56,7 @@ def find_patient(patient_input):
             return row
     return None
 
-# 🧠 Génération de réponse GPT
+# 🧠 Génération réponse avec OpenAI (v1.x)
 def generate_response(contexte_patient, question):
     prompt = f"""Voici le contexte d’un patient en rééducation :
 {contexte_patient}
@@ -64,12 +66,13 @@ Le patient pose la question suivante :
 
 Réponds de manière professionnelle, bienveillante et claire. Tu es un assistant kinésithérapeute."""
 
-    completion = openai.ChatCompletion.create(
+    chat_completion = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7
     )
-    return completion.choices[0].message["content"]
+
+    return chat_completion.choices[0].message.content
 
 # ✅ Commande /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -81,7 +84,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Bonjour 👋 Je suis votre assistant kiné. Posez-moi une question ou parlez-moi de vos douleurs."
     )
 
-# ✅ Message libre
+# ✅ Gestion des messages
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"📩 [{update.effective_user.id}] Message reçu : {update.message.text}")
     user_input = update.message.text.strip()
@@ -105,7 +108,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(response)
 
-# 📌 Gestionnaires
+# 📌 Ajout des handlers
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
@@ -126,7 +129,7 @@ def webhook():
     threading.Thread(target=lambda: asyncio.run(handle())).start()
     return "OK"
 
-# ▶️ Démarrage local (Render l'utilise en prod)
+# ▶️ Démarrage local (pour Render)
 if __name__ == "__main__":
     print("✅ Bot démarré en mode Webhook.")
     app.run(host="0.0.0.0", port=10000)
