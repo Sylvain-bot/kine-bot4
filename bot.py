@@ -15,14 +15,14 @@ from telegram.ext import (
 from openai import OpenAI
 from pprint import pformat
 
-# ✅ Setup logging
+# ✅ Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 📌 Flask app
+# 🌐 Flask app
 app = Flask(__name__)
 
-# 🔐 Tokens
+# 🔐 Secrets
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
@@ -45,7 +45,7 @@ def get_sheet_data():
     sheet = client_gs.open("Patients").sheet1
     return sheet.get_all_records()
 
-# 🔍 Recherche du patient
+# 🔍 Recherche patient
 def find_patient(patient_input):
     data = get_sheet_data()
     for row in data:
@@ -57,7 +57,7 @@ def find_patient(patient_input):
             return row
     return None
 
-# 🧠 Génération de réponse GPT
+# 🧠 Réponse GPT
 def generate_response(contexte_patient, question):
     prompt = f"""Voici le contexte d’un patient en rééducation :
 {contexte_patient}
@@ -65,8 +65,8 @@ def generate_response(contexte_patient, question):
 Le patient pose la question suivante :
 {question}
 
-Réponds de manière professionnelle, bienveillante et claire. Tu es un assistant kinésithérapeute."""
-
+Réponds de manière professionnelle, bienveillante, claire, et tutoie le patient. Tu es un assistant kinésithérapeute."""
+    
     chat_completion = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}],
@@ -74,7 +74,7 @@ Réponds de manière professionnelle, bienveillante et claire. Tu es un assistan
     )
     return chat_completion.choices[0].message.content
 
-# 🤖 Commande /start
+# ▶️ Commande /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("➡️ /start appelé")
     args = context.args
@@ -84,10 +84,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="Bonjour 👋 Je suis votre assistant kiné. Posez-moi une question ou parlez-moi de vos douleurs."
+        text=(
+            "👋 Salut et bienvenue dans ton assistant kiné virtuel !\n\n"
+            "Tu peux me poser une question à tout moment 🤔\n"
+            "Ou taper la commande /exercice pour recevoir ton exercice du jour 🧘‍♂️\n\n"
+            "Je suis là pour t’accompagner dans ta rééducation 💪"
+        )
     )
 
-# 🤖 Message libre
+# ▶️ Message libre
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         logger.info("➡️ Entrée dans handle_message")
@@ -110,8 +115,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             response = generate_response(contexte, user_input)
         else:
             response = (
-                "Je ne trouve pas vos informations. Veuillez vérifier votre prénom ou ID, "
-                "ou contacter directement votre kinésithérapeute."
+                "Je ne trouve pas tes informations. Vérifie bien ton prénom ou contacte directement ton kinésithérapeute."
             )
 
         logger.info(f"💬 Réponse envoyée : {response}")
@@ -124,12 +128,45 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="Une erreur est survenue. Merci de réessayer plus tard."
         )
 
-# 🤖 Application Telegram
+# ▶️ Commande /exercice
+async def exercice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        logger.info("📥 Commande /exercice reçue")
+
+        patient_input = context.user_data.get("patient_input")
+        if not patient_input:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Tu dois d'abord lancer /start avec ton prénom. Exemple : /start?prenom=alice"
+            )
+            return
+
+        patient = find_patient(patient_input)
+        if patient:
+            exercice = patient.get("exercice_du_jour", "Non spécifié")
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=f"🧘 Ton exercice du jour :\n\n{exercice}"
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text="Je ne retrouve pas tes infos. Tu es sûr d'avoir bien écrit ton prénom ?"
+            )
+    except Exception as e:
+        logger.error(f"❌ Erreur dans /exercice : {e}")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Une erreur est survenue. Essaie encore ou contacte ton kiné."
+        )
+
+# 🤖 Bot app
 application = Application.builder().token(TELEGRAM_TOKEN).build()
 application.add_handler(CommandHandler("start", start))
+application.add_handler(CommandHandler("exercice", exercice))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# 🌍 Webhook route pour Telegram
+# 🌍 Webhook route
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
@@ -143,11 +180,7 @@ def webhook():
         logger.error(f"❌ Erreur dans webhook : {e}")
         return "Erreur", 500
 
-# ▶️ Démarrage local
+# ▶️ Lancement serveur
 if __name__ == "__main__":
-    logger.info("✅ Lancement du bot en mode webhook intégré")
-    application.run_webhook(
-        listen="0.0.0.0",
-        port=10000,
-        webhook_url="https://kine-bot4.onrender.com/webhook"
-    )
+    logger.info("✅ Bot démarré avec Flask")
+    app.run(host="0.0.0.0", port=10000)
