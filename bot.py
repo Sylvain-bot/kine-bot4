@@ -17,24 +17,24 @@ from telegram.ext import (
 from openai import OpenAI
 from pprint import pformat
 
-# ✅ Setup logging
+# ✅ Logging compatible Render
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 📌 Initialisation Flask
+# 📌 Flask app
 app = Flask(__name__)
 
-# 🔐 Variables d'environnement
+# 🔐 Tokens
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
-# ✅ OpenAI client
+# 🤖 OpenAI client
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# 🤖 Bot Telegram
+# 🤖 Telegram application
 application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-# 📊 Connexion Google Sheets
+# 📊 Google Sheets
 def get_sheet_data():
     scope = [
         "https://spreadsheets.google.com/feeds",
@@ -50,7 +50,7 @@ def get_sheet_data():
     sheet = client_gs.open("Patients").sheet1
     return sheet.get_all_records()
 
-# 🔍 Recherche du patient
+# 🔍 Trouver un patient
 def find_patient(patient_input):
     data = get_sheet_data()
     for row in data:
@@ -62,7 +62,7 @@ def find_patient(patient_input):
             return row
     return None
 
-# 🧠 Génération réponse OpenAI
+# 🧠 Réponse GPT
 def generate_response(contexte_patient, question):
     prompt = f"""Voici le contexte d’un patient en rééducation :
 {contexte_patient}
@@ -80,18 +80,20 @@ Réponds de manière professionnelle, bienveillante et claire. Tu es un assistan
 
     return chat_completion.choices[0].message.content
 
-# ▶️ Commande /start
+# ▶️ /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("➡️ Entrée dans /start")
     args = context.args
     if args:
         logger.info(f"🆔 Argument reçu : {args[0]}")
         context.user_data["patient_input"] = args[0].lower()
-    await update.message.reply_text(
-        "Bonjour 👋 Je suis votre assistant kiné. Posez-moi une question ou parlez-moi de vos douleurs."
+
+    await application.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Bonjour 👋 Je suis votre assistant kiné. Posez-moi une question ou parlez-moi de vos douleurs."
     )
 
-# ▶️ Gestion des messages
+# ▶️ Message utilisateur
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         logger.info("➡️ Entrée dans handle_message")
@@ -119,11 +121,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
         logger.info(f"💬 Réponse générée : {response}")
-        await update.message.reply_text(response)
+        await application.bot.send_message(chat_id=update.effective_chat.id, text=response)
 
     except Exception as e:
         logger.error(f"❌ Erreur dans handle_message : {e}")
-        await update.message.reply_text("Une erreur est survenue. Veuillez réessayer plus tard.")
+        await application.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Une erreur est survenue. Veuillez réessayer plus tard."
+        )
 
 # 📌 Handlers
 application.add_handler(CommandHandler("start", start))
@@ -156,7 +161,7 @@ def webhook():
         logger.error(f"❌ Erreur dans le webhook : {e}")
         return "Erreur", 500
 
-# ▶️ Démarrage local
+# ▶️ Serveur local
 if __name__ == "__main__":
     logger.info("✅ Bot démarré en mode Webhook.")
     app.run(host="0.0.0.0", port=10000)
