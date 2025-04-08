@@ -2,6 +2,7 @@ import os
 import json
 import gspread
 import logging
+import asyncio
 from flask import Flask, request
 from oauth2client.service_account import ServiceAccountCredentials
 from telegram import Update
@@ -22,12 +23,12 @@ logger = logging.getLogger(__name__)
 # 🌐 Flask app
 app = Flask(__name__)
 
-# 🔐 Secrets
+# 🔐 Tokens
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 # 🤖 OpenAI client
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(apiKey=OPENAI_API_KEY)
 
 # 📊 Google Sheets
 def get_sheet_data():
@@ -45,7 +46,7 @@ def get_sheet_data():
     sheet = client_gs.open("Patients").sheet1
     return sheet.get_all_records()
 
-# 🔍 Recherche patient
+# 🔍 Recherche du patient
 def find_patient(patient_input):
     data = get_sheet_data()
     for row in data:
@@ -57,7 +58,7 @@ def find_patient(patient_input):
             return row
     return None
 
-# 🧠 Réponse GPT
+# 🧠 Générer réponse GPT
 def generate_response(contexte_patient, question):
     prompt = f"""Voici le contexte d’un patient en rééducation :
 {contexte_patient}
@@ -66,7 +67,7 @@ Le patient pose la question suivante :
 {question}
 
 Réponds de manière professionnelle, bienveillante, claire, et tutoie le patient. Tu es un assistant kinésithérapeute."""
-    
+
     chat_completion = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}],
@@ -74,7 +75,7 @@ Réponds de manière professionnelle, bienveillante, claire, et tutoie le patien
     )
     return chat_completion.choices[0].message.content
 
-# ▶️ Commande /start
+# ▶️ /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.info("➡️ /start appelé")
     args = context.args
@@ -92,43 +93,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     )
 
-# ▶️ Message libre
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        logger.info("➡️ Entrée dans handle_message")
-        logger.info(f"📩 Message reçu : {update.message.text}")
-
-        user_input = update.message.text.strip()
-        patient_input = context.user_data.get("patient_input", user_input)
-        logger.info(f"🔍 patient_input = {patient_input}")
-
-        patient = find_patient(patient_input)
-        logger.info(f"🔍 patient trouvé ? {patient is not None}")
-
-        if patient:
-            contexte = (
-                f"Prénom : {patient.get('prenom', 'Inconnu')}\n"
-                f"Exercice du jour : {patient.get('exercice_du_jour', 'Non spécifié')}\n"
-                f"Remarques : {patient.get('remarques', 'Aucune')}"
-            )
-            logger.info("🧠 Envoi à OpenAI...")
-            response = generate_response(contexte, user_input)
-        else:
-            response = (
-                "Je ne trouve pas tes informations. Vérifie bien ton prénom ou contacte directement ton kinésithérapeute."
-            )
-
-        logger.info(f"💬 Réponse envoyée : {response}")
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
-
-    except Exception as e:
-        logger.error(f"❌ Erreur : {e}")
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="Une erreur est survenue. Merci de réessayer plus tard."
-        )
-
-# ▶️ Commande /exercice
+# ▶️ /exercice
 async def exercice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         logger.info("📥 Commande /exercice reçue")
@@ -160,13 +125,49 @@ async def exercice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="Une erreur est survenue. Essaie encore ou contacte ton kiné."
         )
 
-# 🤖 Bot app
+# ▶️ Message utilisateur libre
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        logger.info("➡️ Entrée dans handle_message")
+        logger.info(f"📩 Message reçu : {update.message.text}")
+
+        user_input = update.message.text.strip()
+        patient_input = context.user_data.get("patient_input", user_input)
+        logger.info(f"🔍 patient_input = {patient_input}")
+
+        patient = find_patient(patient_input)
+        logger.info(f"🔍 patient trouvé ? {patient is not None}")
+
+        if patient:
+            contexte = (
+                f"Prénom : {patient.get('prenom', 'Inconnu')}\n"
+                f"Exercice du jour : {patient.get('exercice_du_jour', 'Non spécifié')}\n"
+                f"Remarques : {patient.get('remarques', 'Aucune')}"
+            )
+            logger.info("🧠 Envoi à OpenAI...")
+            response = generate_response(contexte, user_input)
+        else:
+            response = (
+                "Je ne trouve pas tes informations. Vérifie bien ton prénom ou contacte ton kiné."
+            )
+
+        logger.info(f"💬 Réponse envoyée : {response}")
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=response)
+
+    except Exception as e:
+        logger.error(f"❌ Erreur dans handle_message : {e}")
+        await context.bot.send_message(
+            chat_id=update.effective_chat.id,
+            text="Une erreur est survenue. Merci de réessayer plus tard."
+        )
+
+# 🤖 Application Telegram
 application = Application.builder().token(TELEGRAM_TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("exercice", exercice))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# 🌍 Webhook route
+# 🌍 Route Webhook
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
@@ -180,7 +181,15 @@ def webhook():
         logger.error(f"❌ Erreur dans webhook : {e}")
         return "Erreur", 500
 
-# ▶️ Lancement serveur
+# ▶️ Lancement serveur + démarrage bot Telegram
 if __name__ == "__main__":
-    logger.info("✅ Bot démarré avec Flask")
+    logger.info("✅ Initialisation du bot et lancement Flask")
+
+    async def start_bot():
+        await application.initialize()
+        await application.start()
+        logger.info("✅ Bot Telegram démarré et prêt")
+
+    asyncio.run(start_bot())
+
     app.run(host="0.0.0.0", port=10000)
