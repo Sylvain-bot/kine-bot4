@@ -15,7 +15,7 @@ from telegram.ext import (
 )
 from openai import OpenAI
 from pprint import pformat
-from waitress import serve  # ✅ Serveur de production
+from waitress import serve
 
 # ✅ Logging
 logging.basicConfig(level=logging.INFO)
@@ -162,13 +162,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="Une erreur est survenue. Merci de réessayer plus tard."
         )
 
-# 🤖 Telegram App
+# 🤖 Bot Telegram
 application = Application.builder().token(TELEGRAM_TOKEN).build()
 application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("exercice", exercice))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# 🌍 Webhook
+# 🌍 Route santé (Render vérifie cette URL)
+@app.route("/", methods=["GET"])
+def index():
+    return "Bot actif ✅", 200
+
+# 🌍 Route Webhook Telegram
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
@@ -182,16 +187,15 @@ def webhook():
         logger.error(f"❌ Erreur dans webhook : {e}")
         return "Erreur", 500
 
-# ▶️ Lancement serveur + bot
+# ▶️ Lancement Render
 if __name__ == "__main__":
-    logger.info("✅ Initialisation du bot et lancement serveur avec waitress")
+    logger.info("✅ Initialisation du bot et lancement avec waitress")
 
     async def start_bot():
         await application.initialize()
         await application.start()
-        logger.info("✅ Bot Telegram démarré et prêt")
+        logger.info("✅ Bot Telegram prêt")
 
     asyncio.run(start_bot())
 
-    # ✅ Serveur détecté correctement par Render
     serve(app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
