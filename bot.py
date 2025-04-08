@@ -3,6 +3,7 @@ import json
 import gspread
 import asyncio
 import threading
+import logging
 from flask import Flask, request
 from oauth2client.service_account import ServiceAccountCredentials
 from telegram import Update
@@ -14,12 +15,16 @@ from telegram.ext import (
     filters
 )
 from openai import OpenAI
-from pprint import pprint
+from pprint import pformat
+
+# ✅ Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # 📌 Initialisation Flask
 app = Flask(__name__)
 
-# ✅ Variables d'environnement
+# 🔐 Variables d'environnement
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
@@ -57,7 +62,7 @@ def find_patient(patient_input):
             return row
     return None
 
-# 🧠 Générer réponse OpenAI
+# 🧠 Génération réponse OpenAI
 def generate_response(contexte_patient, question):
     prompt = f"""Voici le contexte d’un patient en rééducation :
 {contexte_patient}
@@ -77,10 +82,10 @@ Réponds de manière professionnelle, bienveillante et claire. Tu es un assistan
 
 # ▶️ Commande /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    print("➡️ Entrée dans /start")
+    logger.info("➡️ Entrée dans /start")
     args = context.args
     if args:
-        print(f"🆔 Argument reçu : {args[0]}")
+        logger.info(f"🆔 Argument reçu : {args[0]}")
         context.user_data["patient_input"] = args[0].lower()
     await update.message.reply_text(
         "Bonjour 👋 Je suis votre assistant kiné. Posez-moi une question ou parlez-moi de vos douleurs."
@@ -89,15 +94,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ▶️ Gestion des messages
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        print("➡️ Entrée dans handle_message")
-        print(f"📩 Message reçu : {update.message.text}")
+        logger.info("➡️ Entrée dans handle_message")
+        logger.info(f"📩 Message reçu : {update.message.text}")
 
         user_input = update.message.text.strip()
         patient_input = context.user_data.get("patient_input", user_input)
-        print(f"🔍 patient_input = {patient_input}")
+        logger.info(f"🔍 patient_input = {patient_input}")
 
         patient = find_patient(patient_input)
-        print(f"🔍 patient trouvé ? {patient is not None}")
+        logger.info(f"🔍 patient trouvé ? {patient is not None}")
 
         if patient:
             contexte = (
@@ -105,7 +110,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"Exercice du jour : {patient.get('exercice_du_jour', 'Non spécifié')}\n"
                 f"Remarques : {patient.get('remarques', 'Aucune')}"
             )
-            print("🧠 Envoi au modèle OpenAI...")
+            logger.info("🧠 Envoi au modèle OpenAI...")
             response = generate_response(contexte, user_input)
         else:
             response = (
@@ -113,14 +118,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "ou contacter directement votre kinésithérapeute."
             )
 
-        print(f"💬 Réponse générée : {response}")
+        logger.info(f"💬 Réponse générée : {response}")
         await update.message.reply_text(response)
 
     except Exception as e:
-        print(f"❌ Erreur dans handle_message : {e}")
+        logger.error(f"❌ Erreur dans handle_message : {e}")
         await update.message.reply_text("Une erreur est survenue. Veuillez réessayer plus tard.")
 
-# 📌 Ajout des handlers
+# 📌 Handlers
 application.add_handler(CommandHandler("start", start))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
@@ -131,11 +136,10 @@ def index():
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    print("🔥 Webhook reçu")
+    logger.info("🔥 Webhook reçu")
     try:
         data = request.get_json(force=True)
-        print("📨 Contenu brut du webhook :")
-        pprint(data)  # affiche le JSON brut reçu par Telegram
+        logger.info("📨 Contenu brut du webhook :\n%s", pformat(data))
 
         update = Update.de_json(data, application.bot)
 
@@ -149,10 +153,10 @@ def webhook():
         return "OK"
 
     except Exception as e:
-        print(f"❌ Erreur dans le webhook : {e}")
+        logger.error(f"❌ Erreur dans le webhook : {e}")
         return "Erreur", 500
 
 # ▶️ Démarrage local
 if __name__ == "__main__":
-    print("✅ Bot démarré en mode Webhook.")
+    logger.info("✅ Bot démarré en mode Webhook.")
     app.run(host="0.0.0.0", port=10000)
