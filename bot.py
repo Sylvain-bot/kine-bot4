@@ -58,7 +58,7 @@ def find_patient(patient_input):
             return row
     return None
 
-# 🧠 Générer réponse GPT
+# 🧠 Génération de réponse GPT
 def generate_response(contexte_patient, question):
     prompt = f"""Voici le contexte d’un patient en rééducation :
 {contexte_patient}
@@ -125,7 +125,7 @@ async def exercice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="Une erreur est survenue. Essaie encore ou contacte ton kiné."
         )
 
-# ▶️ Message utilisateur libre
+# ▶️ Message libre
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         logger.info("➡️ Entrée dans handle_message")
@@ -167,7 +167,7 @@ application.add_handler(CommandHandler("start", start))
 application.add_handler(CommandHandler("exercice", exercice))
 application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# 🌍 Route Webhook
+# 🌍 Webhook route
 @app.route("/webhook", methods=["POST"])
 def webhook():
     try:
@@ -181,7 +181,7 @@ def webhook():
         logger.error(f"❌ Erreur dans webhook : {e}")
         return "Erreur", 500
 
-# ▶️ Lancement serveur + démarrage bot Telegram
+# ▶️ Lancement serveur et bot Telegram
 if __name__ == "__main__":
     logger.info("✅ Initialisation du bot et lancement Flask")
 
@@ -192,4 +192,4 @@ if __name__ == "__main__":
 
     asyncio.run(start_bot())
 
-    app.run(host="0.0.0.0", port=10000)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
