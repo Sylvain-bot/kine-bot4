@@ -28,7 +28,7 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 # 🤖 OpenAI client
-client = OpenAI(apiKey=OPENAI_API_KEY)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # 📊 Google Sheets
 def get_sheet_data():
